@@ -47,6 +47,21 @@ bash scripts/download_scannet_mono.sh
 python -m geosam3d.training.train +experiment=scannet_mono_001
 ```
 
+## Smoke tests
+
+```bash
+uv venv --python 3.11 .venv && source .venv/bin/activate
+uv pip install -e ".[dev,space]"
+pytest                                    # 4 + 11 = 15 tests
+python /tmp/launch_smoke.py "$(pwd)" space/app.py
+```
+
+Verified status (CPU smoke):
+- 4/4 heat-method geodesic tests (seed distance is zero, monotone-on-circle, label propagation in [0,1]).
+- 11/11 Space smoke tests (kernel forward, feature head L2-norm, UI build, callback shape, requirements parseable, HF README frontmatter).
+- Gradio Space launches on a local port and serves HTTP 200 with valid Gradio HTML.
+- `space/requirements.txt` resolves cleanly.
+
 ## Repository layout
 
 ```
