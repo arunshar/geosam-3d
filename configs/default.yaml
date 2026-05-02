@@ -1,0 +1,30 @@
+defaults:
+  - _self_
+
+device: cuda
+
+dataset:
+  root: data/scannet
+  split: train
+  clip_length: 30
+
+features:
+  in_dim: 12
+  hidden: 256
+  out_dim: 32
+  depth: 4
+
+recon:
+  iters: 20000
+
+geodesic:
+  k: 16
+  t: 0.05
+
+train:
+  steps_per_scene: 200
+  lr: 1.0e-3
+  out_dir: outputs/scannet_runs
+
+logging:
+  every: 25
