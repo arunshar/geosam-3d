@@ -2,8 +2,8 @@
 
 > Geodesic-aware promptable 3D scene segmentation from monocular video. SAM 2 + Depth Anything V2 + monocular 3D Gaussian Splatting + heat-method geodesic propagation.
 
-[![HF Space](https://img.shields.io/badge/%F0%9F%A4%97-HF%20Space-yellow)](https://huggingface.co/spaces/arun08sharma/geosam-3d)
-[![HF Model](https://img.shields.io/badge/%F0%9F%A4%97-Model%20Card-blue)](https://huggingface.co/arun08sharma/geosam3d-scannet)
+[![HF Space](https://img.shields.io/badge/%F0%9F%A4%97-HF%20Space-yellow)](https://huggingface.co/spaces/Arun0808/geosam-3d)
+![Model checkpoint scaffold](https://img.shields.io/badge/model-checkpoint%20scaffold-blue)
 
 Open-vocabulary 3D scene segmentation tools (OpenMask3D, Gaussian Grouping) require multi-view RGB-D or pre-built meshes; SAM 2's video masks lifted to 3D via Euclidean kNN fragment around occlusions and concavities. GeoSAM-3D reconstructs a 3DGS scene from monocular video using Depth Anything V2 priors, lifts SAM 2 masks to per-Gaussian feature embeddings, and propagates labels via a learned-feature + heat-method geodesic kernel. The geodesic kernel is the technical contribution and inherits directly from the manifold-distance machinery in TGARD.
 
