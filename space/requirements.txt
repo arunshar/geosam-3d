@@ -1,5 +1,2 @@
 gradio>=4.40
 torch>=2.3
-numpy>=1.26
-huggingface_hub>=0.24
-geosam3d @ git+https://github.com/arunshar/geosam-3d@main
