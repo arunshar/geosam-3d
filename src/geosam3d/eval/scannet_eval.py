@@ -31,6 +31,85 @@ def iou_3d(pred: torch.Tensor, target: torch.Tensor) -> float:
     return float(inter / max(union, 1))
 
 
+def multiclass_miou(pred: torch.Tensor, target: torch.Tensor, n_classes: int) -> float:
+    """Mean IoU over the classes present in `target` (classes absent from both skipped)."""
+    ious = []
+    for c in range(n_classes):
+        p, t = pred == c, target == c
+        union = (p | t).sum().item()
+        if union == 0:
+            continue
+        ious.append((p & t).sum().item() / union)
+    return float(sum(ious) / max(len(ious), 1))
+
+
+def _pick_seeds(labels: torch.Tensor, seeds_per_class: int, n_classes: int, generator) -> torch.Tensor:
+    """A few labeled seed indices per class (the only supervision propagation gets)."""
+    chunks = []
+    for c in range(n_classes):
+        idx = (labels == c).nonzero(as_tuple=True)[0]
+        if idx.numel() == 0:
+            continue
+        perm = torch.randperm(idx.numel(), generator=generator)
+        chunks.append(idx[perm[: min(seeds_per_class, idx.numel())]])
+    return torch.cat(chunks)
+
+
+def euclidean_nearest_seed(centroids: torch.Tensor, seed_idx: torch.Tensor, seed_labels: torch.Tensor) -> torch.Tensor:
+    """Baseline: each point takes the label of its nearest seed in 3D Euclidean space."""
+    nearest = torch.cdist(centroids, centroids[seed_idx]).argmin(dim=1)
+    return seed_labels[nearest]
+
+
+def geodesic_nearest_seed(
+    centroids: torch.Tensor, labels: torch.Tensor, seed_idx: torch.Tensor,
+    kernel: HeatGeodesicKernel, n_classes: int,
+) -> torch.Tensor:
+    """Each point takes the class whose seeds are geodesically nearest (heat method)."""
+    cache = kernel.precompute(centroids)
+    dmat = torch.full((centroids.shape[0], n_classes), float("inf"))
+    for c in range(n_classes):
+        cls_seeds = seed_idx[labels[seed_idx] == c]
+        if cls_seeds.numel() == 0:
+            continue
+        seed_mask = torch.zeros(centroids.shape[0])
+        seed_mask[cls_seeds] = 1.0
+        dmat[:, c] = kernel.geodesic(centroids, seed_mask, cache=cache)
+    return dmat.argmin(dim=1)
+
+
+def evaluate_manifold(
+    scene: dict, *, seeds_per_class: int = 3, k: int = 10, t: float = 0.05, seed: int = 0
+) -> dict:
+    """Geodesic vs Euclidean label-propagation mIoU on a structured manifold scene.
+
+    Picks a few seeds per class, propagates labels to the remaining points two
+    ways, and scores both by mean IoU over the non-seed points. On a folded
+    manifold the geodesic kernel should win, because Euclidean nearest-seed
+    bleeds across layers that are close in 3D but far along the surface.
+    """
+    centroids, labels = scene["means"], scene["labels"]
+    n_classes = int(labels.max().item()) + 1
+    g = torch.Generator().manual_seed(int(seed))
+    seed_idx = _pick_seeds(labels, seeds_per_class, n_classes, g)
+    kernel = HeatGeodesicKernel(k=k, t=t)
+    geo_pred = geodesic_nearest_seed(centroids, labels, seed_idx, kernel, n_classes)
+    euc_pred = euclidean_nearest_seed(centroids, seed_idx, labels[seed_idx])
+
+    nonseed = torch.ones(centroids.shape[0], dtype=torch.bool)
+    nonseed[seed_idx] = False
+    return {
+        "geodesic_miou": round(multiclass_miou(geo_pred[nonseed], labels[nonseed], n_classes), 4),
+        "euclidean_miou": round(multiclass_miou(euc_pred[nonseed], labels[nonseed], n_classes), 4),
+        "n_classes": n_classes,
+        "n_points": int(centroids.shape[0]),
+        "n_seeds": int(seed_idx.numel()),
+        "n_eval": int(nonseed.sum().item()),
+        "data": "SYNTHETIC Swiss-roll manifold (NOT ScanNet/Replica/ScanNet++)",
+        "note": "demonstrates geodesic > Euclidean label propagation; not a benchmark result",
+    }
+
+
 def _synthetic_demo(seed: int = 0) -> dict:
     """Run a real heat-geodesic propagation on a SYNTHETIC scene.
 
@@ -100,14 +179,34 @@ def main():
         action="store_true",
         help="Run the synthetic kernel self-check instead of exiting.",
     )
+    p.add_argument(
+        "--manifold",
+        action="store_true",
+        help="Run the synthetic manifold eval: geodesic vs Euclidean mIoU on a Swiss roll.",
+    )
     args = p.parse_args()
+
+    if args.manifold:
+        from geosam3d.data import swiss_roll_scene
+
+        result = evaluate_manifold(swiss_roll_scene(seed=0), seeds_per_class=3, k=10, t=0.05, seed=0)
+        out = Path(args.out)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(json.dumps(result, indent=2))
+        print("SYNTHETIC manifold eval (Swiss roll; NOT a ScanNet benchmark):")
+        print(json.dumps(result, indent=2))
+        print(
+            f"geodesic mIoU {result['geodesic_miou']} vs Euclidean nearest-seed "
+            f"{result['euclidean_miou']} over {result['n_classes']} classes"
+        )
+        return
 
     if not args.demo:
         print(
             "NO BENCHMARK RUN -- real ScanNet/Replica/ScanNet++ evaluation is not "
             "implemented (no dataset loader, no MonoGS/SAM 2 pipeline).\n"
-            "No numbers are emitted. Use --demo to run a SYNTHETIC kernel self-check "
-            "on random data (those numbers are NOT a benchmark result)."
+            "No numbers are emitted. Use --demo for a SYNTHETIC kernel self-check, or "
+            "--manifold for the geodesic-vs-Euclidean manifold eval (neither is a benchmark result)."
         )
         return
 

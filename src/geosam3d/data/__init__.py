@@ -15,6 +15,7 @@ expect: ``means`` (N, 3), ``colors`` (N, 3), ``scales`` (N, 3),
 """
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -101,4 +102,47 @@ class ScanNetMonocularDataset:
         )
 
 
-__all__ = ["ScanNetMonocularDataset", "SyntheticClip"]
+def swiss_roll_scene(
+    n_gaussians: int = 700,
+    n_classes: int = 6,
+    turns: float = 2.0,
+    height: float = 6.0,
+    noise: float = 0.02,
+    seed: int = 0,
+) -> dict:
+    """A synthetic *manifold* scene whose geometry has real structure.
+
+    Points lie on a Swiss roll; the ground-truth segments are contiguous arcs
+    along the roll (`labels`). Non-adjacent arcs come Euclidean-close across
+    roll layers but stay geodesically far along the sheet, so geodesic label
+    propagation should beat a Euclidean nearest-seed baseline (the paper's core
+    claim). Unlike ``ScanNetMonocularDataset`` (pure noise), this scene is
+    structured so that claim is measurable. Returns the usual per-Gaussian keys
+    plus integer ``labels`` (N,) ground truth.
+
+    This is SYNTHETIC manifold data, not ScanNet/Replica/ScanNet++.
+    """
+    g = torch.Generator().manual_seed(int(seed))
+    u = torch.rand(n_gaussians, generator=g)                 # along-roll coord in [0, 1]
+    t_min = 1.5 * math.pi
+    t_max = (1.5 + 2.0 * float(turns)) * math.pi
+    t = t_min + u * (t_max - t_min)
+    means = torch.stack([t * torch.cos(t), height * torch.rand(n_gaussians, generator=g), t * torch.sin(t)], dim=-1)
+    means = means + noise * t_max * torch.randn(n_gaussians, 3, generator=g)
+    means = means - means.mean(dim=0, keepdim=True)
+    means = means / means.abs().max().clamp_min(1e-6)        # ~[-1, 1] for stable kernel numerics
+    labels = (u * n_classes).floor().clamp(0, n_classes - 1).long()
+    quats = torch.randn(n_gaussians, 4, generator=g)
+    quats = quats / quats.norm(dim=-1, keepdim=True)
+    return {
+        "means": means,
+        "colors": torch.rand(n_gaussians, 3, generator=g),
+        "scales": torch.rand(n_gaussians, 3, generator=g) * 0.1,
+        "opacities": torch.rand(n_gaussians, generator=g),
+        "quats": quats,
+        "labels": labels,
+        "mask_ids": labels.clone(),
+    }
+
+
+__all__ = ["ScanNetMonocularDataset", "SyntheticClip", "swiss_roll_scene"]
