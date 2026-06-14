@@ -5,9 +5,15 @@ import gradio as gr
 
 
 def segment(video_file, click_frame_idx: int, click_xy: str):
-    """Run the full pipeline: MonoGS -> features -> heat-method propagation."""
+    """STUB callback for the demo UI.
+
+    This does NOT run segmentation. The real pipeline (MonoGS reconstruction,
+    SAM 2 masks, feature head, heat-method propagation) is not wired into the
+    Space; this returns a text preview describing the intended flow so the UI
+    is interactive. See the repository README for the implementation status.
+    """
     preview = (
-        "GeoSAM-3D scaffold preview\n"
+        "GeoSAM-3D scaffold preview (no real segmentation is run)\n"
         f"video input: {video_file or 'demo clip'}\n"
         f"prompt frame: {click_frame_idx}\n"
         f"click: {click_xy}\n"
