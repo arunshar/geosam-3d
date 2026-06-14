@@ -79,6 +79,7 @@ def test_propagate_label_pipeline():
 
 
 def test_space_app_importable():
+    pytest.importorskip("gradio")
     module = _load_app_module()
     assert hasattr(module, "build_ui")
     assert hasattr(module, "segment")
@@ -93,6 +94,7 @@ def test_space_ui_builds():
 
 def test_space_callback_returns_two_values():
     """The segment callback returns (image, stats)."""
+    pytest.importorskip("gradio")
     module = _load_app_module()
     out = module.segment(None, 0, "0,0")
     assert isinstance(out, tuple) and len(out) == 2
