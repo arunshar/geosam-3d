@@ -32,3 +32,7 @@ tests/test_synthetic.py::test_eval_demo_is_synthetic_and_runs PASSED     [100%]
 
 ======================== 21 passed, 1 skipped in 1.54s =========================
 ```
+
+## Reproduced demo (headline number)
+
+On a sampled unit circle, geodesic distance from a seed to the antipode is 2.35 vs the Euclidean chord 2.0, the label propagates along the surface, not by straight-line proximity.
